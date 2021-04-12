@@ -843,23 +843,28 @@ pub(crate) fn code_action_kind(kind: AssistKind) -> lsp_types::CodeActionKind {
     }
 }
 
-pub(crate) fn unresolved_code_action(
+pub(crate) fn code_action(
     snap: &GlobalStateSnapshot,
-    code_action_params: lsp_types::CodeActionParams,
+    resolve_data: Option<lsp_types::CodeActionParams>,
     assist: Assist,
     index: usize,
 ) -> Result<lsp_ext::CodeAction> {
-    assert!(assist.source_change.is_none());
-    let res = lsp_ext::CodeAction {
+    let mut res = lsp_ext::CodeAction {
         title: assist.label.to_string(),
         group: assist.group.filter(|_| snap.config.code_action_group()).map(|gr| gr.0),
         kind: Some(code_action_kind(assist.id.1)),
         edit: None,
         is_preferred: None,
-        data: Some(lsp_ext::CodeActionData {
-            id: format!("{}:{}", assist.id.0, index.to_string()),
-            code_action_params,
-        }),
+        data: None,
+    };
+    match (assist.source_change, resolve_data) {
+        (Some(it), _) => res.edit = Some(snippet_workspace_edit(snap, it)?),
+        (None, Some(code_action_params)) => {
+            res.data = Some(lsp_ext::CodeActionData {
+                id: format!("{}:{}", assist.id.0, index.to_string()),
+                code_action_params,
+            });
+        }
     };
     Ok(res)
 }
